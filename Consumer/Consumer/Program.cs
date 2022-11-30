@@ -1,25 +1,127 @@
-var builder = WebApplication.CreateBuilder(args);
+﻿using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Text.Json;
+using Consumer.Data;
+using Consumer.Data.Repository;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
+using Sender.Models;
 
-// Add services to the container.
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+public class Program
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    private static int total = 0;
+    private static int clears = 0;
+    private static int i = 0;
+    //private readonly static AppDbContext _dbContext = new AppDbContext();
+    //private readonly static ProductRepository _productRepository = new ProductRepository(_dbContext);
+
+
+    private static void TimerCallback(object obj)
+    {
+        if (i != 0)
+        {
+            Console.WriteLine("====================================");
+            clears++;
+            //Console.Clear();
+            Console.WriteLine($"{i}/per second");
+            Console.WriteLine($"{total / clears} avg");
+            Console.WriteLine("total"+total);
+            Console.WriteLine("work time " + clears);
+
+            i = 0;
+        }
+    }
+    //private static List<ProductModel> products = new List<ProductModel>();
+
+    public static async Task Main(string[] args)
+    {
+        var factory = new ConnectionFactory() {HostName = "localhost", DispatchConsumersAsync = true };
+        //await Task.Run(()=>StartTheConsumer(factory));
+        //Console.ReadKey();
+
+        var task1 = Task.Run(() => StartTheConsumer(factory));
+        var task2 = Task.Run(() => StartTheConsumer(factory));
+        var task3 = Task.Run(() => StartTheConsumer(factory));
+        var task4 = Task.Run(() => StartTheConsumer(factory));
+        var task5 = Task.Run(() => StartTheConsumer(factory));
+        var task6 = Task.Run(() => StartTheConsumer(factory));
+        var task7 = Task.Run(() => StartTheConsumer(factory));
+        var task8 = Task.Run(() => StartTheConsumer(factory));
+
+
+        // var task3 = Task.Run(() => { var timer = new Timer(TimerCallback, null, 0, 1000); });
+
+        //await task3;
+
+        await Task.WhenAll(task1,task2,task3,task4,task5,task6,task7,task8);
+
+        //x5 =56%
+        //x1=44%
+
+        Console.ReadKey();
+    }
+
+    
+    private static async Task StartTheConsumer(ConnectionFactory factory)
+    {
+        Console.WriteLine(Task.CurrentId+"---");
+
+        using (var connection = factory.CreateConnection())
+        {
+            using (var channel = connection.CreateModel())
+            {
+                channel.QueueDeclare(queue: "hello",
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null);
+
+                var consumer = new AsyncEventingBasicConsumer(channel);
+
+
+                consumer.Received += async (model, ea) =>
+                {
+
+                    //channel.BasicAck(deliveryTag:ea.DeliveryTag,multiple:false);
+                    total++;
+                    i++;
+                    var body = ea.Body.ToArray();
+                    var message = Encoding.UTF8.GetString(body);
+                    var ResponseModel = JsonSerializer.Deserialize<ProductModel>(message);
+                    ResponseModel.Id = Guid.NewGuid().ToString();
+
+                    using (AppDbContext dbContext = new AppDbContext())
+                    {
+
+                        dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+                        ProductRepository productRepository = new ProductRepository(dbContext);
+                        await productRepository.Create(ResponseModel);
+                    };
+                    channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+                };
+
+                var timer = new Timer(TimerCallback, null, 0, 1000);
+                channel.BasicConsume(queue: "hello",
+                    autoAck: false,
+                    consumer: consumer);
+                Console.ReadKey();
+
+            }
+        }
+
+    }
 }
 
-app.UseHttpsRedirection();
+//normal
+//300-800
+//560+
+//60
 
-app.UseAuthorization();
+// dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+//100-900
+//483
+//60
 
-app.MapControllers();
 
-app.Run();
+//only one task run = total -16414
