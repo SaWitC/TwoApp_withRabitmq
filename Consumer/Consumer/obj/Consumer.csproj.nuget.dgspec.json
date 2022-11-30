@@ -68,6 +68,14 @@
             "RabbitMQ.Client": {
               "target": "Package",
               "version": "[6.4.0, )"
+            },
+            "SqlBulkCopy": {
+              "target": "Package",
+              "version": "[1.0.0, )"
+            },
+            "Z.EntityFramework.Extensions.EFCore": {
+              "target": "Package",
+              "version": "[7.17.1, )"
             }
           },
           "imports": [
