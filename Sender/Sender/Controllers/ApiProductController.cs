@@ -13,6 +13,54 @@ namespace Sender.Controllers
     {
 
         [HttpPost]
+        [Route("1000000")]
+
+        public IActionResult Send1000000(ProductModel model)
+        {
+
+            var factory = new ConnectionFactory() { HostName = "localhost" };
+
+            using (var connection = factory.CreateConnection())
+            {
+                using (var channel = connection.CreateModel())
+                {
+                    channel.QueueDeclare(queue: "hello"
+                        , durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: null);
+                    string buf = model.Title;
+
+                    for (int i = 0; i < 1000000; i++)
+                    {
+                        model.Title = buf + i;
+                        string message = JsonSerializer.Serialize(model);
+
+                        var body = Encoding.UTF8.GetBytes(message);
+
+                        channel.BasicPublish(exchange: "",
+                            routingKey: "hello",
+                            basicProperties: null,
+                            body: body);
+                    }
+
+                    //string message = JsonSerializer.Serialize(model);
+
+                    //var body = Encoding.UTF8.GetBytes(message);
+
+                    //channel.BasicPublish(exchange: "",
+                    //    routingKey: "hello",
+                    //    basicProperties: null,
+                    //    body: body);
+
+                    return Ok("sent ");
+                }
+            }
+
+            return Ok("error");
+        }
+
+        [HttpPost]
         [Route("100000")]
 
         public IActionResult Send100000( ProductModel model)
